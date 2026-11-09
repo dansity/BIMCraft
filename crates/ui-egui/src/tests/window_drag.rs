@@ -205,3 +205,31 @@ fn moving_the_joined_wall_line_keeps_its_return_connected() {
     assert_eq!(other.start, wall.start);
     assert_eq!(other.end, P2(0.0, 4000.0));
 }
+
+#[test]
+fn window_selection_is_visible_after_the_pointer_leaves_and_clears_on_wall_selection() {
+    let mut h = app(WALL);
+    press(&mut h, "Default 3D View");
+    let window = h.state().screen3([2000.0, 0.0, 1500.0]);
+    let wall = h.state().screen3([4800.0, -100.0, 1500.0]);
+    let labeled = |h: &Harness<BimApp>| {
+        h.output().shapes.iter().any(|s| {
+        matches!(&s.shape, egui::Shape::Text(text) if text.galley.text() == "Window W-01" && h.state().view_rect.contains(text.pos))
+    })
+    };
+    h.hover_at(window);
+    h.run();
+    assert!(!labeled(&h));
+    click_at(&mut h, window);
+    assert!(labeled(&h));
+    h.hover_at(wall);
+    h.run();
+    assert!(labeled(&h));
+    click_at(&mut h, wall);
+    assert_eq!(h.state().selection, [ids(&h, "wall")[0]]);
+    assert!(!labeled(&h));
+    click_at(&mut h, window);
+    assert!(labeled(&h));
+    key(&mut h, Key::Escape);
+    assert!(!labeled(&h));
+}

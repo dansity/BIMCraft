@@ -1603,6 +1603,9 @@ impl BimApp {
                 crate::canvas::tag(&p, at + vec2(14.0, -8.0), egui::Align2::LEFT_BOTTOM, model.units.with_unit(z));
             }
         }
+        if let Some(id) = single.filter(|_| o.placement_drag.is_none()) {
+            placement::selected_window(&p, &model, id, screen, |at| pick(&o.picker, at).is_some_and(|hit| hit.id == id));
+        }
         // A selected wall's location line, as a plan shows it, along its base.
         if let Some(id) = single {
             let line: Vec<Pos2> = handles::location_line(&model, id).into_iter().map(&screen).filter(|q| q.is_finite()).collect();

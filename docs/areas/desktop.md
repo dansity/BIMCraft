@@ -177,6 +177,10 @@ moves the camera: in Modify, away from a grip or a single selected hosted window
 them is drawn, the far edges of each plane and its head (`Orbit::select`, drawn by `canvas::box_shapes`), which picks what `Scene::in_box` finds: from the left what lies wholly
 inside, from the right what it touches, by where the model is rather than what's in front, so what's behind is boxed too.
 
+In Modify, a window selected alone in 3D has a dark-and-white perimeter and a label above the head
+with its window mark when available. Hovering over the host keeps the window identified until selection changes.
+The perimeter and label are view overlays and accept no pointer input.
+
 A window selected alone on a straight wall moves in its host plane when its body is dragged. Shift holds the
 starting sill. The plane passes through the grabbed surface point, so an oblique view keeps the cursor on the
 same part of the window. A disposable session validates the offset and sill together with `modify`. The view draws

@@ -4,6 +4,45 @@ use bimcraft_core::engine::Session;
 use bimcraft_core::model::Element;
 use bimcraft_core::walls::{self, Axis};
 
+/// Project the opening rectangle in its host plane, including a pending drag displacement.
+fn window_ring(model: &Model, id: Id, by: P2, screen: impl Fn(P3) -> Pos2) -> Option<[Pos2; 4]> {
+    let e @ Element::Window(w) = model.elements.get(id)? else { return None };
+    let size = model.opening_type(e)?;
+    let (center, axis, z) = model.opening_frame(w)?;
+    let center = center + axis * by.0;
+    let left = center - axis * (size.width / 2.0);
+    let right = center + axis * (size.width / 2.0);
+    let bottom = z + by.1;
+    let top = bottom + size.height;
+    let ring = [(left, bottom), (right, bottom), (right, top), (left, top)].map(|(xy, z)| screen([xy.0, xy.1, z]));
+    ring.iter().all(|p| p.is_finite()).then_some(ring)
+}
+
+pub(super) fn selected_window(p: &egui::Painter, model: &Model, id: Id, screen: impl Fn(P3) -> Pos2, visible: impl Fn(Pos2) -> bool) {
+    let Some(Element::Window(w)) = model.elements.get(id) else { return };
+    let Some(ring) = window_ring(model, id, P2(0.0, 0.0), screen) else { return };
+    let center = ring[0].lerp(ring[2], 0.5);
+    // The picker accounts for intervening geometry, hidden elements and the section box.
+    if !std::iter::once(center).chain(ring.map(|corner| corner.lerp(center, 0.12))).any(|at| p.clip_rect().contains(at) && visible(at)) {
+        return;
+    }
+    let dark = egui::Color32::from_rgb(27, 36, 48);
+    for (width, color) in [(5.0, dark), (2.0, egui::Color32::WHITE)] {
+        p.add(egui::Shape::closed_line(ring.to_vec(), Stroke::new(width, color)));
+    }
+    let mark = w.mark.trim();
+    let label = if mark.is_empty() { t("Window").to_owned() } else { format!("{} {}", t("Window"), mark) };
+    let text = p.layout_no_wrap(label, egui::FontId::proportional(13.0), egui::Color32::WHITE);
+    let size = text.size() + vec2(12.0, 6.0);
+    let head = ring[2].lerp(ring[3], 0.5);
+    let bounds = p.clip_rect();
+    let left = (head.x - size.x * 0.5).clamp(bounds.left(), (bounds.right() - size.x).max(bounds.left()));
+    let top = (head.y - size.y - 3.0).clamp(bounds.top(), (bounds.bottom() - size.y).max(bounds.top()));
+    let badge = Rect::from_min_size(egui::pos2(left, top), size);
+    p.rect_filled(badge, 3.0, dark);
+    p.galley(badge.min + vec2(6.0, 3.0), text, egui::Color32::WHITE);
+}
+
 enum Picked {
     Window { offset: f64, sill: f64 },
     Wall { joined_end: bool },
@@ -98,15 +137,7 @@ impl PlacementDrag {
         let ink = if self.preview.is_err() { pal().error } else { pal().accent };
         match self.picked {
             Picked::Window { sill, .. } => {
-                let Some(e @ Element::Window(w)) = self.base.elements.get(self.id) else { return };
-                let (Some(size), Some((center, axis, z))) = (self.base.opening_type(e), self.base.opening_frame(w)) else { return };
-                let center = center + axis * by.0;
-                let left = center - axis * (size.width / 2.0);
-                let right = center + axis * (size.width / 2.0);
-                let bottom = z + by.1;
-                let top = bottom + size.height;
-                let ring = [(left, bottom), (right, bottom), (right, top), (left, top)].map(|(xy, z)| screen([xy.0, xy.1, z]));
-                if ring.iter().all(|p| p.is_finite()) {
+                if let Some(ring) = window_ring(&self.base, self.id, by, screen) {
                     let at = ring[2];
                     painter.add(egui::Shape::closed_line(ring.to_vec(), Stroke::new(2.0, ink)));
                     let height = self.base.units.with_unit(sill + by.1);
