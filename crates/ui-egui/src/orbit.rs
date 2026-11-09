@@ -15,8 +15,8 @@
 //! The scene and the card's mesh are made on a worker (`view_worker.rs`), an edit's from the scene before; meanwhile the view
 //! shows the last picture, then faded with what it waits for.
 
-mod window;
-use window::WindowDrag;
+mod placement;
+use placement::PlacementDrag;
 
 use std::sync::Arc;
 
@@ -285,7 +285,7 @@ pub struct Orbit {
     pub(crate) triad: crate::triad::Over,
     /// What the Aligned Dimension tool has picked in the 3D view so far: its references, before a click places its line.
     pub(crate) dim3: Vec<Ref3>,
-    window_drag: Option<WindowDrag>,
+    placement_drag: Option<PlacementDrag>,
     /// The Measure tool in the 3D view: the chain of points clicked, and whether it is done (closed back to its start, or ended
     /// with Enter); the next click begins another.
     /// The handle of the selected wall or column being dragged: the element, which, its place and where the drag began.
@@ -344,7 +344,7 @@ impl Default for Orbit {
             wall_base: None,
             triad: Default::default(),
             dim3: Vec::new(),
-            window_drag: None,
+            placement_drag: None,
             handle: None,
             hot_handle: None,
             chain: Vec::new(),
@@ -565,16 +565,16 @@ pub(crate) fn rgb(c: Color32) -> Rgb {
 }
 
 impl Orbit {
-    pub(crate) fn window_drag_active(&self) -> bool {
-        self.window_drag.is_some()
+    pub(crate) fn placement_drag_active(&self) -> bool {
+        self.placement_drag.is_some()
     }
 
-    pub(crate) fn cancel_window_drag(&mut self) {
-        self.window_drag = None;
+    pub(crate) fn cancel_placement_drag(&mut self) {
+        self.placement_drag = None;
     }
 
     pub(crate) fn suspend(&mut self) {
-        self.cancel_window_drag();
+        self.cancel_placement_drag();
         self.worker = None;
         self.requested = None;
         self.fit_worker = None;
@@ -920,32 +920,33 @@ impl BimApp {
         let mut model = self.view_model();
         // A release can arrive while the renderer is still building the previous pointer position.
         // Handle capture first, then draw the validated trial through the existing scene worker.
-        let window_captured = self.orbit.window_drag_active();
-        if let Some(mut drag) = self.orbit.window_drag.take()
+        let placement_captured = self.orbit.placement_drag_active();
+        if let Some(mut drag) = self.orbit.placement_drag.take()
             && self.tool == Tool::Modify
             && self.selection == [drag.id]
             && Arc::ptr_eq(&drag.base, &model)
             && ui.input(|i| i.focused)
             && let (Some(camera), Some(now)) = (self.orbit.camera, latest)
         {
-            drag.update(&camera, px(now), shift);
+            // Native pointer events carry the modifiers at mouse-up, even when keyboard
+            // and mouse changes are grouped into one frame.
+            drag.update(&camera, px(now), click_modifiers(ui).shift);
             self.status = match drag.model() {
                 Err(reason) => Status { text: reason.clone(), error: true },
                 Ok(_) => Status::default(),
             };
             if ui.input(|i| i.pointer.primary_released()) {
                 if rect.contains(now)
-                    && !self.canvas.quick()
-                    && let Some(params) = drag.commit()
+                    && let Some((cmd, params)) = drag.commit()
                 {
-                    self.run("modify", params);
+                    self.run(cmd, params);
                     model = self.view_model();
                 }
             } else if ui.input(|i| i.pointer.primary_down()) {
                 if let Ok(preview) = drag.model() {
                     model = Arc::clone(preview);
                 }
-                self.orbit.window_drag = Some(drag);
+                self.orbit.placement_drag = Some(drag);
             }
         }
         // An Edit Boundary begun here: its lines on the element's plane, a drag from a picked one's end holding its grip.
@@ -1057,7 +1058,7 @@ impl BimApp {
         if let Some(at) = hover {
             // A wheel notch (about 50 points) zooms by a fifth, toward what's under the cursor.
             let factor = (f64::from(wheel) * 0.004).exp() * f64::from(pinch);
-            if !window_captured && factor.is_finite() && factor != 1.0 {
+            if !placement_captured && factor.is_finite() && factor != 1.0 {
                 let factor = factor.clamp(0.2, 5.0);
                 cam = match surface(&o.picker, &cam, at) {
                     Some(s) => cam.zoom_about(factor, s.at),
@@ -1135,6 +1136,24 @@ impl BimApp {
         let single = match selection.as_slice() {
             &[id] if modify && !lifting && sketch_z.is_none() => Some(id),
             _ => None,
+        };
+        let wall_line = single.filter(|id| !picking && self.sketch.is_none() && self.session.model.wall(*id).is_some()).and_then(|id| {
+            let wall = model.wall(id)?;
+            if wall.arc != 0.0 || wall.attach_base.is_some() {
+                return None;
+            }
+            let line = handles::location_line(&model, id);
+            let [a, b] = line.as_slice() else { return None };
+            Some((id, *a, *b))
+        });
+        let line_at = |cam: &Camera, pos: Pos2| {
+            let (id, a, b) = wall_line?;
+            let start = on_screen(cam, rect, ppp, a);
+            let end = on_screen(cam, rect, ppp, b);
+            if !start.is_finite() || !end.is_finite() || crate::sketch3d::to_segment(pos, start, end) > PICK {
+                return None;
+            }
+            Some((id, cam.on_plane(px(pos), a[2])?))
         };
         let own_handles = single.map(|id| handles::of(&model, id)).unwrap_or_default();
         let handle_at = |cam: &Camera, at: Pos2| {
@@ -1236,7 +1255,7 @@ impl BimApp {
             && o.grip.is_none()
             && o.boxing.is_none()
             && o.handle.is_none()
-            && !window_captured
+            && !placement_captured
             && !held
             && o.lift.is_none()
             && let Some(origin) = ui.input(|i| i.pointer.press_origin())
@@ -1256,9 +1275,13 @@ impl BimApp {
                             dims3d::pick(&marks, px(origin), f64::from(PICK) * f64::from(ppp)).is_some()
                         })
                     })
-                    .and_then(|hit| WindowDrag::start(&model, hit, &cam, px(origin)));
+                    .and_then(|hit| PlacementDrag::window(&model, hit, &cam, px(origin)));
+                let grabbed = grabbed.or_else(|| {
+                    let (id, grab) = line_at(&cam, origin)?;
+                    PlacementDrag::wall(&model, id, grab)
+                });
                 if let Some(drag) = grabbed {
-                    o.window_drag = Some(drag);
+                    o.placement_drag = Some(drag);
                     ui.ctx().request_repaint();
                 } else if modify {
                     o.select = Some(origin);
@@ -1583,7 +1606,12 @@ impl BimApp {
         // A selected wall's location line, as a plan shows it, along its base.
         if let Some(id) = single {
             let line: Vec<Pos2> = handles::location_line(&model, id).into_iter().map(&screen).filter(|q| q.is_finite()).collect();
-            p.extend(egui::Shape::dashed_line(&line, Stroke::new(1.5, pal().accent), 8.0, 5.0));
+            let hot =
+                o.handle.is_none() && o.hot_handle.is_none() && o.hot_grip.is_none() && hover.is_some_and(|at| line_at(&cam, at).is_some());
+            if hot {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+            }
+            p.extend(egui::Shape::dashed_line(&line, Stroke::new(if hot { 3.0 } else { 1.5 }, pal().accent), 8.0, 5.0));
         }
         for (h, q) in &own_handles {
             draw_handle(&p, &cam, *h, *q, o.handle.map(|(_, held, ..)| held), o.hot_handle, screen);
@@ -1750,7 +1778,7 @@ impl BimApp {
         }
         // A click on a grip picks nothing behind it.
         let click = response.clicked().then(|| response.interact_pointer_pos()).flatten().or(self.canvas.quick_press());
-        let click = click.filter(|_| !window_captured);
+        let click = click.filter(|_| !placement_captured);
         let click = click.filter(|at| !boxed.is_some_and(|b| modify && crate::section_box::grip_at(b, *at, screen).is_some()));
         let click = click.filter(|at| handle_at(&cam, *at).is_none());
         let on_patch = |at: Pos2| patch.is_some_and(|ring| crate::workplane::on_patch(&ring, at));
@@ -1901,7 +1929,7 @@ impl BimApp {
                 _ => self.status = Status { text: crate::lang::t("click on the floor's top").into(), error: true },
             }
         }
-        if let (Some(drag), Some(cam)) = (&self.orbit.window_drag, self.orbit.camera) {
+        if let (Some(drag), Some(cam)) = (&self.orbit.placement_drag, self.orbit.camera) {
             drag.outline(&p, |q| on_screen(&cam, rect, self.orbit.ppp, q));
         }
         self.nav_bar3d(ui, &p, rect);
@@ -1986,7 +2014,7 @@ impl BimApp {
             p.rect(card, 6.0, pal().surface, Stroke::new(1.0, pal().border), StrokeKind::Inside);
             p.galley(at, galley, pal().text);
         }
-        if let (Some(drag), Some(cam)) = (&self.orbit.window_drag, self.orbit.camera) {
+        if let (Some(drag), Some(cam)) = (&self.orbit.placement_drag, self.orbit.camera) {
             drag.outline(&p, |q| on_screen(&cam, rect, self.orbit.ppp, q));
         }
         self.nav_bar3d(ui, &p, rect);

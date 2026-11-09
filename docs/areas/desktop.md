@@ -171,7 +171,7 @@ sheets take their clicks), and what lay under it is read there (`under_at`), not
 move and its box, so only a press let go within `QUICK` (0.2 s) is a click wherever the hand went: the drag it began is not
 finished (`Canvas::quick`, `BimApp::finish_drag`: grips, crop regions, a sheet's views, the plan's move and box) and the selection
 that drag's start replaced comes back (`BimApp::grab`) for the click to pick from. A slower press is the drag it is. In the 3D view
-a quick press is a click whatever the tool, and a camera the hand turned meanwhile goes back (`Orbit::before`). There, as in
+a quick press is a click unless Modify has captured a selected window or wall location line, and a camera the hand turned meanwhile goes back (`Orbit::before`). There, as in
 Revit, Shift and the middle button orbit, round the point under the pointer, and the middle button alone pans; a primary drag never
 moves the camera: in Modify, away from a grip or a single selected hosted window, it is a selection box, as in a plan, adding to the selection with Shift held; it takes levels by what of
 them is drawn, the far edges of each plane and its head (`Orbit::select`, drawn by `canvas::box_shapes`), which picks what `Scene::in_box` finds: from the left what lies wholly
@@ -182,6 +182,14 @@ starting sill. The plane passes through the grabbed surface point, so an oblique
 same part of the window. A disposable session validates the offset and sill together with `modify`. The view draws
 that model, including the new wall cut. Escape discards it. Release submits the same command once to the project.
 An invalid placement shows the rejection and leaves the project and its history intact.
+
+During a window drag the on-canvas readout shows the sill and whether Shift locks it. Release
+uses the modifiers reported with the mouse-up event, including when the hand moves quickly.
+A selected straight wall with a level base moves in plan when its dotted location line is dragged
+between the existing grips. In an oblique view the pointer intersects the base plane. The same
+`move` command previews and commits the wall with its hosted openings and joins. A wall end
+joined to a stationary wall constrains default travel to the perpendicular. Shift reverses that
+constraint. End grips and the vertical base arrow retain their own actions.
 
 A wall or column selected alone in Modify has handles in the 3D view (core `handles.rs`, drawn by `orbit::draw_handle`): a wall's two
 ends at its base on its location line, which is drawn dashed along its base (`handles::location_line`), a column's place, and an arrow on the top and under the base of each, as a section box's faces have. A drag previews the element

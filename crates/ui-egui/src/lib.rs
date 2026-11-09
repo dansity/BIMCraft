@@ -1897,8 +1897,8 @@ impl BimApp {
         } else if pressed(Modifiers::COMMAND, Key::Z) {
             self.run("undo", json!({}));
         }
-        if self.orbit.window_drag_active() && (pressed(Modifiers::SHIFT, Key::Escape) || pressed(Modifiers::NONE, Key::Escape)) {
-            self.orbit.cancel_window_drag();
+        if self.orbit.placement_drag_active() && (pressed(Modifiers::SHIFT, Key::Escape) || pressed(Modifiers::NONE, Key::Escape)) {
+            self.orbit.cancel_placement_drag();
             self.status = Status::default();
             return;
         }

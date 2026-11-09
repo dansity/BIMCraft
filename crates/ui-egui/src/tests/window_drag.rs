@@ -15,7 +15,7 @@ fn capture(h: &mut Harness<BimApp>, from: Pos2, to: Pos2) {
     h.run();
     h.hover_at(to);
     h.run();
-    assert!(h.state().orbit.window_drag_active(), "window body took the primary drag");
+    assert!(h.state().orbit.placement_drag_active(), "window body took the primary drag");
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn hosted_window_drag_shift_escape_and_invalid_release() {
     h.run();
     h.event(button(to, false));
     h.run();
-    assert!(!h.state().orbit.window_drag_active());
+    assert!(!h.state().orbit.placement_drag_active());
     assert!(Arc::ptr_eq(&base, &h.state().session.model));
     assert_eq!(h.state().selection, [id]);
     h.event(Event::ModifiersChanged(Modifiers::SHIFT));
@@ -104,4 +104,104 @@ fn hosted_window_drag_shift_escape_and_invalid_release() {
         assert!(Arc::ptr_eq(&now, &h.state().session.model));
         assert_eq!(h.state().session.history().len(), n + 1);
     }
+}
+
+#[test]
+fn a_quick_shift_drag_places_the_window_at_its_original_sill() {
+    let mut h = app_at(WALL, 0.016);
+    press(&mut h, "Default 3D View");
+    let id = ids(&h, "window")[0];
+    let from = h.state().screen3([2000.0, 0.0, 1500.0]);
+    let to = h.state().screen3([3200.0, 0.0, 1800.0]);
+    click_at(&mut h, from);
+    let held = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::SHIFT };
+    deliver(&mut h, vec![Event::ModifiersChanged(Modifiers::SHIFT), held(from, true)]);
+    deliver(&mut h, vec![Event::PointerMoved(to)]);
+    assert!(h.state().orbit.placement_drag_active());
+    deliver(&mut h, vec![held(to, false), Event::ModifiersChanged(Modifiers::NONE)]);
+    let placed = opening(&h.state().session.model, id);
+    assert!((placed.offset - 3200.0).abs() < 2.0, "{placed:?}");
+    assert_eq!(placed.sill, 900.0);
+}
+
+#[test]
+fn shift_stamped_on_mouse_up_locks_the_sill_at_commit() {
+    let mut h = app(WALL);
+    press(&mut h, "Default 3D View");
+    let id = ids(&h, "window")[0];
+    let from = h.state().screen3([2000.0, 0.0, 1500.0]);
+    let to = h.state().screen3([3400.0, 0.0, 1830.0]);
+    click_at(&mut h, from);
+    capture(&mut h, from, to);
+    deliver(&mut h, vec![Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::SHIFT }]);
+    let placed = opening(&h.state().session.model, id);
+    assert!((placed.offset - 3400.0).abs() < 2.0);
+    assert_eq!(placed.sill, 900.0);
+}
+
+#[test]
+fn selected_wall_location_line_moves_the_whole_host_with_its_openings() {
+    let mut h = app(WALL);
+    press(&mut h, "Default 3D View");
+    let id = ids(&h, "wall")[0];
+    let win = ids(&h, "window")[0];
+    let door = ids(&h, "door")[0];
+    let face = h.state().screen3([4800.0, -100.0, 1500.0]);
+    click_at(&mut h, face);
+    assert_eq!(h.state().selection, [id]);
+    let base = Arc::clone(&h.state().session.model);
+    let cam = h.state().orbit.camera;
+    let history = h.state().session.history().len();
+    let from = h.state().screen3([2700.0, 0.0, 0.0]);
+    let to = h.state().screen3([3200.0, 750.0, 0.0]);
+    capture(&mut h, from, to);
+    let trial = &h.state().orbit.scene.as_ref().unwrap().0;
+    let w = trial.wall(id).unwrap().clone();
+    assert!(w.start.dist(P2(500.0, 750.0)) < 2.0 && w.end.dist(P2(8500.0, 750.0)) < 2.0, "{w:?}");
+    for open in [win, door] {
+        let element = trial.elements.get(open).unwrap();
+        let reference = base.elements.get(open).unwrap();
+        assert_eq!(element, reference, "same instance, host, size and relative position");
+        let (Element::Door(o) | Element::Window(o)) = element else { panic!("opening") };
+        let new = trial.opening_frame(o).unwrap().0;
+        let old = base.opening_frame(o).unwrap().0;
+        assert!((new - old).dist(w.start) < 2.0);
+    }
+    assert!(Arc::ptr_eq(&base, &h.state().session.model));
+    key(&mut h, Key::Escape);
+    h.event(button(to, false));
+    h.run();
+    assert!(Arc::ptr_eq(&base, &h.state().session.model));
+    assert_eq!(h.state().selection, [id]);
+    capture(&mut h, from, to);
+    h.event(button(to, false));
+    h.run();
+    assert_eq!(h.state().session.history().len(), history + 1);
+    assert_eq!(h.state().session.model.wall(id), Some(&w));
+    assert_eq!(h.state().orbit.camera, cam);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run();
+    assert_eq!(h.state().session.model.wall(id), base.wall(id));
+    press(&mut h, "Redo");
+    assert_eq!(h.state().session.model.wall(id), Some(&w));
+}
+
+#[test]
+fn moving_the_joined_wall_line_keeps_its_return_connected() {
+    let mut h = app(&format!("{WALL}\nwall {{\"points\":[[0,0],[0,4000]]}}"));
+    press(&mut h, "Default 3D View");
+    let id = find(&h, |e| matches!(e, Element::Wall(w) if w.end == P2(8000.0,0.0)));
+    let neighbor = find(&h, |e| matches!(e, Element::Wall(w) if w.end == P2(0.0,4000.0)));
+    let face = h.state().screen3([4800.0, -100.0, 1500.0]);
+    click_at(&mut h, face);
+    assert_eq!(h.state().selection, [id]);
+    let from = h.state().screen3([2700.0, 0.0, 0.0]);
+    let to = h.state().screen3([3200.0, 750.0, 0.0]);
+    drag_screen(&mut h, from, to, PointerButton::Primary);
+    let m = &h.state().session.model;
+    let wall = m.wall(id).unwrap();
+    assert!(wall.start.dist(P2(0.0, 750.0)) < 2.0 && wall.end.dist(P2(8000.0, 750.0)) < 2.0);
+    let other = m.wall(neighbor).unwrap();
+    assert_eq!(other.start, wall.start);
+    assert_eq!(other.end, P2(0.0, 4000.0));
 }
