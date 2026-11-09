@@ -5880,6 +5880,7 @@ mod typed;
 mod typeprops;
 mod view_controls;
 mod window;
+mod window_drag;
 mod working3d;
 mod workplane;
 

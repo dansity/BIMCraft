@@ -1897,6 +1897,11 @@ impl BimApp {
         } else if pressed(Modifiers::COMMAND, Key::Z) {
             self.run("undo", json!({}));
         }
+        if self.orbit.window_drag_active() && (pressed(Modifiers::SHIFT, Key::Escape) || pressed(Modifiers::NONE, Key::Escape)) {
+            self.orbit.cancel_window_drag();
+            self.status = Status::default();
+            return;
+        }
         // Esc while a custom fill pattern is picked brings its dialog back.
         if pressed(Modifiers::NONE, Key::Escape) && !self.cancel_pattern_pick() {
             self.escape();

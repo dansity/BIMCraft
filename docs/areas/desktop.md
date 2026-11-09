@@ -173,9 +173,15 @@ finished (`Canvas::quick`, `BimApp::finish_drag`: grips, crop regions, a sheet's
 that drag's start replaced comes back (`BimApp::grab`) for the click to pick from. A slower press is the drag it is. In the 3D view
 a quick press is a click whatever the tool, and a camera the hand turned meanwhile goes back (`Orbit::before`). There, as in
 Revit, Shift and the middle button orbit, round the point under the pointer, and the middle button alone pans; a primary drag never
-moves the camera: in Modify it is a selection box, as in a plan, adding to the selection with Shift held; it takes levels by what of
+moves the camera: in Modify, away from a grip or a single selected hosted window, it is a selection box, as in a plan, adding to the selection with Shift held; it takes levels by what of
 them is drawn, the far edges of each plane and its head (`Orbit::select`, drawn by `canvas::box_shapes`), which picks what `Scene::in_box` finds: from the left what lies wholly
 inside, from the right what it touches, by where the model is rather than what's in front, so what's behind is boxed too.
+
+A window selected alone on a straight wall moves in its host plane when its body is dragged. Shift holds the
+starting sill. The plane passes through the grabbed surface point, so an oblique view keeps the cursor on the
+same part of the window. A disposable session validates the offset and sill together with `modify`. The view draws
+that model, including the new wall cut. Escape discards it. Release submits the same command once to the project.
+An invalid placement shows the rejection and leaves the project and its history intact.
 
 A wall or column selected alone in Modify has handles in the 3D view (core `handles.rs`, drawn by `orbit::draw_handle`): a wall's two
 ends at its base on its location line, which is drawn dashed along its base (`handles::location_line`), a column's place, and an arrow on the top and under the base of each, as a section box's faces have. A drag previews the element

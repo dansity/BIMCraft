@@ -1,6 +1,7 @@
 //! The 3D view: the core's picture of the model (`view3d::Scene`), orbited, panned and zoomed as
 //! in Revit. Shift and the middle button orbit, round the point under the pointer where the drag began; the middle button
-//! pans; the wheel zooms toward the point under the cursor. A primary drag in Modify is a selection box, as in a plan, and
+//! pans; the wheel zooms toward the point under the cursor. In Modify the selected window slides on its straight host;
+//! Shift holds its sill. A primary drag elsewhere is a selection box, as in a plan, and
 //! never turns the view (`Scene::in_box`: from the left what lies wholly inside, from the right what it touches; the sketch's
 //! lines while sketching); with Shift held it adds to the selection. A
 //! click picks the element the picture shows there, and so does a press let go quickly, however
@@ -13,6 +14,9 @@
 //! the cursor, snapped as that level's plan snaps; a run's ends may lie on two faces, and climb from one to the other.
 //! The scene and the card's mesh are made on a worker (`view_worker.rs`), an edit's from the scene before; meanwhile the view
 //! shows the last picture, then faded with what it waits for.
+
+mod window;
+use window::WindowDrag;
 
 use std::sync::Arc;
 
@@ -281,6 +285,7 @@ pub struct Orbit {
     pub(crate) triad: crate::triad::Over,
     /// What the Aligned Dimension tool has picked in the 3D view so far: its references, before a click places its line.
     pub(crate) dim3: Vec<Ref3>,
+    window_drag: Option<WindowDrag>,
     /// The Measure tool in the 3D view: the chain of points clicked, and whether it is done (closed back to its start, or ended
     /// with Enter); the next click begins another.
     /// The handle of the selected wall or column being dragged: the element, which, its place and where the drag began.
@@ -339,6 +344,7 @@ impl Default for Orbit {
             wall_base: None,
             triad: Default::default(),
             dim3: Vec::new(),
+            window_drag: None,
             handle: None,
             hot_handle: None,
             chain: Vec::new(),
@@ -559,7 +565,16 @@ pub(crate) fn rgb(c: Color32) -> Rgb {
 }
 
 impl Orbit {
+    pub(crate) fn window_drag_active(&self) -> bool {
+        self.window_drag.is_some()
+    }
+
+    pub(crate) fn cancel_window_drag(&mut self) {
+        self.window_drag = None;
+    }
+
     pub(crate) fn suspend(&mut self) {
+        self.cancel_window_drag();
         self.worker = None;
         self.requested = None;
         self.fit_worker = None;
@@ -902,7 +917,37 @@ impl BimApp {
             let hover = i.pointer.hover_pos().filter(|_| response.hovered());
             (hover, i.smooth_scroll_delta.y, i.zoom_delta(), i.modifiers.shift, i.pointer.latest_pos())
         });
-        let model = self.view_model();
+        let mut model = self.view_model();
+        // A release can arrive while the renderer is still building the previous pointer position.
+        // Handle capture first, then draw the validated trial through the existing scene worker.
+        let window_captured = self.orbit.window_drag_active();
+        if let Some(mut drag) = self.orbit.window_drag.take()
+            && self.tool == Tool::Modify
+            && self.selection == [drag.id]
+            && Arc::ptr_eq(&drag.base, &model)
+            && ui.input(|i| i.focused)
+            && let (Some(camera), Some(now)) = (self.orbit.camera, latest)
+        {
+            drag.update(&camera, px(now), shift);
+            self.status = match drag.model() {
+                Err(reason) => Status { text: reason.clone(), error: true },
+                Ok(_) => Status::default(),
+            };
+            if ui.input(|i| i.pointer.primary_released()) {
+                if rect.contains(now)
+                    && !self.canvas.quick()
+                    && let Some(params) = drag.commit()
+                {
+                    self.run("modify", params);
+                    model = self.view_model();
+                }
+            } else if ui.input(|i| i.pointer.primary_down()) {
+                if let Ok(preview) = drag.model() {
+                    model = Arc::clone(preview);
+                }
+                self.orbit.window_drag = Some(drag);
+            }
+        }
         // An Edit Boundary begun here: its lines on the element's plane, a drag from a picked one's end holding its grip.
         let sketch_z = self.sketch_surface();
         let last = self.orbit.camera.map(|c| Camera { width: w, height: h, ..c });
@@ -1012,7 +1057,7 @@ impl BimApp {
         if let Some(at) = hover {
             // A wheel notch (about 50 points) zooms by a fifth, toward what's under the cursor.
             let factor = (f64::from(wheel) * 0.004).exp() * f64::from(pinch);
-            if factor.is_finite() && factor != 1.0 {
+            if !window_captured && factor.is_finite() && factor != 1.0 {
                 let factor = factor.clamp(0.2, 5.0);
                 cam = match surface(&o.picker, &cam, at) {
                     Some(s) => cam.zoom_about(factor, s.at),
@@ -1191,12 +1236,31 @@ impl BimApp {
             && o.grip.is_none()
             && o.boxing.is_none()
             && o.handle.is_none()
+            && !window_captured
             && !held
             && o.lift.is_none()
             && let Some(origin) = ui.input(|i| i.pointer.press_origin())
         {
             if response.dragged_by(PointerButton::Primary) {
-                if modify {
+                let grabbed = single
+                    .filter(|id| {
+                        !picking
+                            && self.sketch.is_none()
+                            && !patch.is_some_and(|ring| crate::workplane::on_patch(&ring, origin))
+                            && matches!(self.session.model.elements.get(*id), Some(bimcraft_core::model::Element::Window(_)))
+                    })
+                    .and_then(|id| surface(&o.picker, &cam, origin).filter(|s| s.id == id))
+                    .filter(|_| {
+                        !active.is_some_and(|v| {
+                            let marks = dims3d::marks(&model, v, &cam, &Look::of_3d(&model), dims3d::SCREEN * f64::from(ppp));
+                            dims3d::pick(&marks, px(origin), f64::from(PICK) * f64::from(ppp)).is_some()
+                        })
+                    })
+                    .and_then(|hit| WindowDrag::start(&model, hit, &cam, px(origin)));
+                if let Some(drag) = grabbed {
+                    o.window_drag = Some(drag);
+                    ui.ctx().request_repaint();
+                } else if modify {
                     o.select = Some(origin);
                 }
             } else if response.dragged_by(PointerButton::Middle) {
@@ -1686,6 +1750,7 @@ impl BimApp {
         }
         // A click on a grip picks nothing behind it.
         let click = response.clicked().then(|| response.interact_pointer_pos()).flatten().or(self.canvas.quick_press());
+        let click = click.filter(|_| !window_captured);
         let click = click.filter(|at| !boxed.is_some_and(|b| modify && crate::section_box::grip_at(b, *at, screen).is_some()));
         let click = click.filter(|at| handle_at(&cam, *at).is_none());
         let on_patch = |at: Pos2| patch.is_some_and(|ring| crate::workplane::on_patch(&ring, at));
@@ -1836,6 +1901,9 @@ impl BimApp {
                 _ => self.status = Status { text: crate::lang::t("click on the floor's top").into(), error: true },
             }
         }
+        if let (Some(drag), Some(cam)) = (&self.orbit.window_drag, self.orbit.camera) {
+            drag.outline(&p, |q| on_screen(&cam, rect, self.orbit.ppp, q));
+        }
         self.nav_bar3d(ui, &p, rect);
         // The navigation triad, over the picture whichever painter made it; Alt and a click on it sets the work plane.
         self.triad_draw(&p, rect, &cam);
@@ -1917,6 +1985,9 @@ impl BimApp {
             let card = Rect::from_min_size(at, galley.size()).expand2(vec2(12.0, 7.0));
             p.rect(card, 6.0, pal().surface, Stroke::new(1.0, pal().border), StrokeKind::Inside);
             p.galley(at, galley, pal().text);
+        }
+        if let (Some(drag), Some(cam)) = (&self.orbit.window_drag, self.orbit.camera) {
+            drag.outline(&p, |q| on_screen(&cam, rect, self.orbit.ppp, q));
         }
         self.nav_bar3d(ui, &p, rect);
     }

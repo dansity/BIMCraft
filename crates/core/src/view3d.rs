@@ -3457,6 +3457,20 @@ impl Camera {
         }
     }
 
+    /// Where the line of sight meets an arbitrary plane through `point` with a unit `normal`.
+    /// An edge-on plane, or an intersection behind the eye, has no cursor point.
+    pub fn on_face_plane(&self, at: (f64, f64), point: P3, normal: P3) -> Option<P3> {
+        let on = self.unproject(at);
+        let eye = self.eye();
+        let (from, along) = match eye {
+            Some(eye) => (eye, unit(sub(on, eye))),
+            None => (on, mul(self.axes().0, -1.0)),
+        };
+        let facing = dot(along, normal);
+        let t = dot(sub(point, from), normal) / facing;
+        (facing.abs() > 1e-9 && t.is_finite() && (eye.is_none() || t > 0.0)).then(|| add(from, mul(along, t)))
+    }
+
     /// The point at pixel `(x, y)` on the horizontal plane at height `z`; none where the view is
     /// level with it, or in perspective where the plane is behind the eye there.
     pub fn on_plane(&self, at: (f64, f64), z: f64) -> Option<P3> {
@@ -3898,16 +3912,9 @@ pub struct Surface {
 /// Where the line of sight through pixel `at` meets the plane of triangle `p`, element `id`'s: in perspective, in front of the eye.
 pub(crate) fn surface_of(cam: &Camera, at: (f64, f64), id: Id, p: &[P3; 3]) -> Option<Surface> {
     let n = unit(cross(sub(p[1], p[0]), sub(p[2], p[0])));
-    let on = cam.unproject(at);
-    let eye = cam.eye();
-    let (from, along) = match eye {
-        Some(eye) => (eye, unit(sub(on, eye))),
-        None => (on, mul(cam.axes().0, -1.0)),
-    };
-    let facing = dot(along, n);
-    let t = dot(sub(p[0], from), n) / facing;
-    let normal = if facing > 0.0 { mul(n, -1.0) } else { n };
-    (facing.abs() > 1e-9 && t.is_finite() && (eye.is_none() || t > 0.0)).then(|| Surface { id, at: add(from, mul(along, t)), normal })
+    let at = cam.on_face_plane(at, p[0], n)?;
+    let normal = if dot(cam.toward(at), n) < 0.0 { mul(n, -1.0) } else { n };
+    Some(Surface { id, at, normal })
 }
 
 /// Where the line of sight through pixel `at` meets level `id`'s plane, of `levels` (each a level, its name and its plane's corners).
