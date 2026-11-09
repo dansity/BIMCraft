@@ -282,7 +282,7 @@ msgstr "Horizontaal"
 msgid "Inspection Box"
 msgstr "Controleputje"
 
-#: crates/core/src/import.rs:1262
+#: crates/core/src/import.rs:1265
 msgid "Insulation"
 msgstr "Isolatie"
 
@@ -347,7 +347,7 @@ msgstr ""
 msgid "Medium Lines"
 msgstr "Middeldikke lijnen"
 
-#: crates/core/src/import.rs:1265
+#: crates/core/src/import.rs:1268
 msgid "Membrane"
 msgstr "Membraan"
 
