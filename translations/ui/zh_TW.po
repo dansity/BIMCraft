@@ -3509,7 +3509,7 @@ msgstr "找到 {}；以下沒有對應的圖元：{}"
 msgid "Fine"
 msgstr "精細"
 
-#: crates/core/src/import.rs:1263
+#: crates/core/src/import.rs:1266
 #: crates/ui-egui/src/notes.rs:451
 #: crates/ui-egui/src/properties.rs:728
 msgid "Finish"
@@ -4247,7 +4247,7 @@ msgstr "正在安裝 BIMCraft {}…"
 msgid "Instance"
 msgstr "實例"
 
-#: crates/core/src/import.rs:1262
+#: crates/core/src/import.rs:1265
 #: crates/ui-egui/src/draw.rs:664
 msgid "Insulation"
 msgstr "保溫層"
@@ -5059,7 +5059,7 @@ msgstr "中等"
 msgid "Medium Lines"
 msgstr "中粗線"
 
-#: crates/core/src/import.rs:1265
+#: crates/core/src/import.rs:1268
 #: crates/ui-egui/src/properties.rs:727
 msgid "Membrane"
 msgstr "薄膜層"
@@ -6044,7 +6044,7 @@ msgstr "拆除的階段"
 msgid "Phase Filter"
 msgstr "階段過濾器"
 
-#: crates/core/src/ifc.rs:1738
+#: crates/core/src/ifc.rs:1740
 msgid "Phase Filters"
 msgstr "階段過濾器列表"
 
@@ -8266,7 +8266,7 @@ msgstr "子網格分割數 Y"
 msgid "Subgrid pen"
 msgstr "子網格筆"
 
-#: crates/core/src/import.rs:1264
+#: crates/core/src/import.rs:1267
 #: crates/ui-egui/src/properties.rs:725
 msgid "Substrate"
 msgstr "基層"

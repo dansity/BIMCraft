@@ -282,7 +282,7 @@ msgstr "Horisontell"
 msgid "Inspection Box"
 msgstr "Inspektionsbrunn"
 
-#: crates/core/src/import.rs:1262
+#: crates/core/src/import.rs:1265
 msgid "Insulation"
 msgstr "Isolering"
 
@@ -347,7 +347,7 @@ msgstr ""
 msgid "Medium Lines"
 msgstr "Medelbreda linjer"
 
-#: crates/core/src/import.rs:1265
+#: crates/core/src/import.rs:1268
 msgid "Membrane"
 msgstr "Membran"
 

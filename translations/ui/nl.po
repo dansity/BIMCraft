@@ -3509,7 +3509,7 @@ msgstr "Vindt {}; niets heeft deze: {}"
 msgid "Fine"
 msgstr "Fijn"
 
-#: crates/core/src/import.rs:1263
+#: crates/core/src/import.rs:1266
 #: crates/ui-egui/src/notes.rs:451
 #: crates/ui-egui/src/properties.rs:728
 msgid "Finish"
@@ -4247,7 +4247,7 @@ msgstr "BIMCraft {} installeren…"
 msgid "Instance"
 msgstr "Instantie"
 
-#: crates/core/src/import.rs:1262
+#: crates/core/src/import.rs:1265
 #: crates/ui-egui/src/draw.rs:664
 msgid "Insulation"
 msgstr "Isolatie"
@@ -5059,7 +5059,7 @@ msgstr "Gemiddeld"
 msgid "Medium Lines"
 msgstr "Middeldikke lijnen"
 
-#: crates/core/src/import.rs:1265
+#: crates/core/src/import.rs:1268
 #: crates/ui-egui/src/properties.rs:727
 msgid "Membrane"
 msgstr "Membraan"
@@ -6044,7 +6044,7 @@ msgstr "Fase van sloop"
 msgid "Phase Filter"
 msgstr "Fasefilter"
 
-#: crates/core/src/ifc.rs:1738
+#: crates/core/src/ifc.rs:1740
 msgid "Phase Filters"
 msgstr "Fasefilters"
 
@@ -8266,7 +8266,7 @@ msgstr "Onderverdelingen van het subraster Y"
 msgid "Subgrid pen"
 msgstr "Pen van het subraster"
 
-#: crates/core/src/import.rs:1264
+#: crates/core/src/import.rs:1267
 #: crates/ui-egui/src/properties.rs:725
 msgid "Substrate"
 msgstr "Ondergrond"

@@ -3508,7 +3508,7 @@ msgstr "Najde {}; žádný prvek nemá tyto vlastnosti: {}"
 msgid "Fine"
 msgstr "Jemná"
 
-#: crates/core/src/import.rs:1263
+#: crates/core/src/import.rs:1266
 #: crates/ui-egui/src/notes.rs:451
 #: crates/ui-egui/src/properties.rs:728
 msgid "Finish"
@@ -4246,7 +4246,7 @@ msgstr "Instalace aplikace BIMCraft {}…"
 msgid "Instance"
 msgstr "Instance"
 
-#: crates/core/src/import.rs:1262
+#: crates/core/src/import.rs:1265
 #: crates/ui-egui/src/draw.rs:664
 msgid "Insulation"
 msgstr "Tepelná izolace"
@@ -5058,7 +5058,7 @@ msgstr "Střední"
 msgid "Medium Lines"
 msgstr "Střední čáry"
 
-#: crates/core/src/import.rs:1265
+#: crates/core/src/import.rs:1268
 #: crates/ui-egui/src/properties.rs:727
 msgid "Membrane"
 msgstr "Hydroizolační fólie"
@@ -6043,7 +6043,7 @@ msgstr "Fáze demolice"
 msgid "Phase Filter"
 msgstr "Filtr fází"
 
-#: crates/core/src/ifc.rs:1738
+#: crates/core/src/ifc.rs:1740
 msgid "Phase Filters"
 msgstr "Filtry fází"
 
@@ -8265,7 +8265,7 @@ msgstr "Dělení podmřížky Y"
 msgid "Subgrid pen"
 msgstr "Pero podmřížky"
 
-#: crates/core/src/import.rs:1264
+#: crates/core/src/import.rs:1267
 #: crates/ui-egui/src/properties.rs:725
 msgid "Substrate"
 msgstr "Podkladní vrstva"

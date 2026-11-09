@@ -3509,7 +3509,7 @@ msgstr ""
 msgid "Fine"
 msgstr ""
 
-#: crates/core/src/import.rs:1263
+#: crates/core/src/import.rs:1266
 #: crates/ui-egui/src/notes.rs:451
 #: crates/ui-egui/src/properties.rs:728
 msgid "Finish"
@@ -4247,7 +4247,7 @@ msgstr ""
 msgid "Instance"
 msgstr ""
 
-#: crates/core/src/import.rs:1262
+#: crates/core/src/import.rs:1265
 #: crates/ui-egui/src/draw.rs:664
 msgid "Insulation"
 msgstr ""
@@ -5059,7 +5059,7 @@ msgstr ""
 msgid "Medium Lines"
 msgstr ""
 
-#: crates/core/src/import.rs:1265
+#: crates/core/src/import.rs:1268
 #: crates/ui-egui/src/properties.rs:727
 msgid "Membrane"
 msgstr ""
@@ -6044,7 +6044,7 @@ msgstr ""
 msgid "Phase Filter"
 msgstr ""
 
-#: crates/core/src/ifc.rs:1738
+#: crates/core/src/ifc.rs:1740
 msgid "Phase Filters"
 msgstr ""
 
@@ -8266,7 +8266,7 @@ msgstr ""
 msgid "Subgrid pen"
 msgstr ""
 
-#: crates/core/src/import.rs:1264
+#: crates/core/src/import.rs:1267
 #: crates/ui-egui/src/properties.rs:725
 msgid "Substrate"
 msgstr ""
